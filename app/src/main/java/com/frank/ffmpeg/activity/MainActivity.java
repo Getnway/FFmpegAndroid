@@ -60,9 +60,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.btn_push://FFmpeg推流
                 intent.setClass(MainActivity.this, PushActivity.class);
                 break;
-            case R.id.btn_live://实时推流直播:AAC音频编码、H264视频编码、RTMP推流
-                intent.setClass(MainActivity.this, LiveActivity.class);
-                break;
+//            case R.id.btn_live://实时推流直播:AAC音频编码、H264视频编码、RTMP推流
+//                intent.setClass(MainActivity.this, LiveActivity.class);
+//                break;
             case R.id.btn_filter://滤镜特效
                 intent.setClass(MainActivity.this, FilterActivity.class);
                 break;

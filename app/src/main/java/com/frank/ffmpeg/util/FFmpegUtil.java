@@ -21,7 +21,7 @@ public class FFmpegUtil {
      * @return 转码后的文件
      */
     public static String[] transformAudio(String srcFile, String targetFile){
-        String transformAudioCmd = "ffmpeg -i %s %s";
+        String transformAudioCmd = "ffmpeg -i %s -acodec pcm_s16le -f s16le -ac 1 -ar 16000 %s";
         transformAudioCmd = String.format(transformAudioCmd, srcFile, targetFile);
         return transformAudioCmd.split(" ");//以空格分割为字符串数组
     }
@@ -36,9 +36,17 @@ public class FFmpegUtil {
      */
     @SuppressLint("DefaultLocale")
     public static  String[] cutAudio(String srcFile, int startTime, int duration, String targetFile){
-        String cutAudioCmd = "ffmpeg -i %s -ss %d -t %d %s";
-        cutAudioCmd = String.format(cutAudioCmd, srcFile, startTime, duration, targetFile);
+        String cutAudioCmd = "ffmpeg -i %s -vn -acodec copy -ss %s -t %s %s";
+        cutAudioCmd = String.format(cutAudioCmd, srcFile, getTime(startTime), getTime(duration), targetFile);
         return cutAudioCmd.split(" ");//以空格分割为字符串数组
+    }
+
+    @SuppressLint("DefaultLocale")
+    private static String getTime(int time){
+        int hour = time / 3600;
+        int min = time % 3600 / 60;
+        int second = time % 60;
+        return String.format("%02d:%02d:%02d", hour, min, second);
     }
 
     /**
@@ -49,7 +57,8 @@ public class FFmpegUtil {
      * @return 合并后的文件
      */
     public static  String[] concatAudio(String srcFile, String appendFile, String targetFile){
-        String concatAudioCmd = "ffmpeg -i concat:%s|%s -acodec copy %s";
+//        String concatAudioCmd = "ffmpeg -i concat:%s|%s -acodec copy %s";
+        String concatAudioCmd = "ffmpeg -i %s -i %s -filter_complex [0:a][1:a]concat=n=2:v=0:a=1[a] -map [a] %s";
         concatAudioCmd = String.format(concatAudioCmd, srcFile, appendFile, targetFile);
         return concatAudioCmd.split(" ");//以空格分割为字符串数组
     }

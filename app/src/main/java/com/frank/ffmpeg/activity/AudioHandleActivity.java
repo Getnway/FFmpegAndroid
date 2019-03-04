@@ -9,9 +9,12 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
+
 import java.io.File;
+import java.util.Arrays;
 
 import com.frank.ffmpeg.AudioPlayer;
+import com.frank.ffmpeg.BuildConfig;
 import com.frank.ffmpeg.FFmpegCmd;
 import com.frank.ffmpeg.R;
 import com.frank.ffmpeg.util.FFmpegUtil;
@@ -22,22 +25,24 @@ import com.frank.ffmpeg.util.FileUtil;
  * Created by frank on 2018/1/23.
  */
 
-public class AudioHandleActivity extends AppCompatActivity implements View.OnClickListener{
+public class AudioHandleActivity extends AppCompatActivity implements View.OnClickListener {
 
     private final static String TAG = AudioHandleActivity.class.getSimpleName();
     private final static String PATH = Environment.getExternalStorageDirectory().getPath();
-    private String srcFile = PATH + File.separator + "tiger.mp3";
-    private String appendFile = PATH + File.separator + "test.mp3";
+    //    private String srcFile = PATH + File.separator + "tiger.mp3";
+    private String srcFile = "/storage/emulated/0/lansongBox/honor30s2.m4a";
+    //    private String appendFile = PATH + File.separator + "test.mp3";
+    private String appendFile = "/storage/emulated/0/lansongBox/aac20s.aac";
     private final static int MSG_BEGIN = 11;
     private final static int MSG_FINISH = 12;
     private ProgressBar progress_audio;
 
     @SuppressLint("HandlerLeak")
-    private Handler mHandler = new Handler(){
+    private Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            switch (msg.what){
+            switch (msg.what) {
                 case MSG_BEGIN:
                     progress_audio.setVisibility(View.VISIBLE);
                     setGone();
@@ -97,7 +102,7 @@ public class AudioHandleActivity extends AppCompatActivity implements View.OnCli
     @Override
     public void onClick(View v) {
         int handleType;
-        switch (v.getId()){
+        switch (v.getId()) {
             case R.id.btn_transform:
                 handleType = 0;
                 break;
@@ -131,31 +136,32 @@ public class AudioHandleActivity extends AppCompatActivity implements View.OnCli
 
     /**
      * 调用ffmpeg处理音频
+     *
      * @param handleType handleType
      */
-    private void doHandleAudio(int handleType){
+    private void doHandleAudio(int handleType) {
         String[] commandLine = null;
-        if (!FileUtil.checkFileExist(srcFile)){
+        if (!FileUtil.checkFileExist(srcFile)) {
             return;
         }
-        switch (handleType){
+        switch (handleType) {
             case 0://转码
                 String transformFile = PATH + File.separator + "transform.aac";
                 commandLine = FFmpegUtil.transformAudio(srcFile, transformFile);
                 break;
             case 1://剪切
-                String cutFile = PATH + File.separator + "cut.mp3";
-                commandLine = FFmpegUtil.cutAudio(srcFile, 10, 15, cutFile);
+                String cutFile = PATH + File.separator + "cut.m4a";
+                commandLine = FFmpegUtil.cutAudio(srcFile, 5, 10, cutFile);
                 break;
             case 2://合并，支持MP3、AAC、AMR等，不支持PCM裸流，不支持WAV（PCM裸流加音频头）
-                if (!FileUtil.checkFileExist(appendFile)){
+                if (!FileUtil.checkFileExist(appendFile)) {
                     return;
                 }
-                String concatFile = PATH + File.separator + "concat.mp3";
+                String concatFile = PATH + File.separator + "concat.m4a";
                 commandLine = FFmpegUtil.concatAudio(srcFile, appendFile, concatFile);
                 break;
             case 3://混合
-                if (!FileUtil.checkFileExist(appendFile)){
+                if (!FileUtil.checkFileExist(appendFile)) {
                     return;
                 }
                 String mixFile = PATH + File.separator + "mix.aac";
@@ -191,7 +197,7 @@ public class AudioHandleActivity extends AppCompatActivity implements View.OnCli
                 String srcPCM = PATH + File.separator + "audio.pcm";//第一个pcm文件
                 String appendPCM = PATH + File.separator + "audio.pcm";//第二个pcm文件
                 String concatPCM = PATH + File.separator + "concat.pcm";//合并后的文件
-                if (!FileUtil.checkFileExist(srcPCM) || !FileUtil.checkFileExist(appendPCM)){
+                if (!FileUtil.checkFileExist(srcPCM) || !FileUtil.checkFileExist(appendPCM)) {
                     return;
                 }
 
@@ -207,13 +213,24 @@ public class AudioHandleActivity extends AppCompatActivity implements View.OnCli
 
     /**
      * 执行ffmpeg命令行
+     *
      * @param commandLine commandLine
      */
-    private void executeFFmpegCmd(final String[] commandLine){
-        if(commandLine == null){
+    private void executeFFmpegCmd(final String[] commandLine) {
+        if (commandLine == null) {
             return;
         }
-        FFmpegCmd.execute(commandLine, new FFmpegCmd.OnHandleListener() {
+        String[] commands;
+        if (BuildConfig.DEBUG) {
+            commands = new String[commandLine.length + 1];
+            commands[0] = commandLine[0];
+            commands[1] = "-d";
+            System.arraycopy(commandLine, 1, commands, 2, commandLine.length - 1);
+        } else {
+            commands = commandLine.clone();
+        }
+        Log.d(TAG, String.format("call executeFFmpegCmd(): commandLine = [%s]", Arrays.toString(commands)));
+        FFmpegCmd.execute(commands, new FFmpegCmd.OnHandleListener() {
             @Override
             public void onBegin() {
                 Log.i(TAG, "handle audio onBegin...");
@@ -222,7 +239,7 @@ public class AudioHandleActivity extends AppCompatActivity implements View.OnCli
 
             @Override
             public void onEnd(int result) {
-                Log.i(TAG, "handle audio onEnd...");
+                Log.i(TAG, String.format("handle audio onEnd...result=%s", result));
                 mHandler.obtainMessage(MSG_FINISH).sendToTarget();
             }
         });

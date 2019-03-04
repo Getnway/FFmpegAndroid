@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NDK=/home/mn/bin/android-ndk-r15b
+NDK=/usr/android/ndk/android-ndk-r16b
 SYSROOT=$NDK/platforms/android-16/arch-arm/
 TOOLCHAIN=$NDK/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64
 PREFIX=../output

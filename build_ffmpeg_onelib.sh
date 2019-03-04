@@ -21,7 +21,7 @@ arch='arm64'
 android='android'
 fi
 
-export NDK=/home/frank/android/android-ndk-r10e
+export NDK=/usr/android/ndk/android-ndk-r10e
 export PREBUILT=$NDK/toolchains/$cpu-linux-$android-4.9/prebuilt
 export PLATFORM=$NDK/platforms/android-21/arch-$cpu
 export PREFIX=../ff-onelib

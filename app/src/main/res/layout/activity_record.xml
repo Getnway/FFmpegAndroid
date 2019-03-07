@@ -5,23 +5,77 @@
     android:gravity="center_horizontal"
     android:orientation="vertical">
 
-    <Button
-        android:id="@+id/btn_record"
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="录制" />
+        android:text="基于文件" />
 
-    <Button
-        android:id="@+id/btn_transform"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="转码" />
+        android:orientation="horizontal">
 
-    <Button
-        android:id="@+id/btn_recognize"
+        <Button
+            android:id="@+id/btn_record"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="录制" />
+
+        <Button
+            android:id="@+id/btn_transform"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="转码" />
+
+        <Button
+            android:id="@+id/btn_recognize"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="识别" />
+    </LinearLayout>
+
+
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="识别" />
+        android:text="基于流" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btn_record_stream"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="录制" />
+
+        <Button
+            android:id="@+id/btn_transform_stream_m4a"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="转码m4a" />
+
+        <Button
+            android:id="@+id/btn_transform_stream_16pcm"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="转码16kpcm" />
+
+        <Button
+            android:id="@+id/btn_recognize_stream"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="识别" />
+    </LinearLayout>
+
+    <com.frank.ffmpeg.WaveView
+        android:id="@+id/wave_view"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:layout_marginLeft="10dp"
+        android:layout_marginRight="10dp" />
 
     <ScrollView
         android:id="@+id/scroll_view"

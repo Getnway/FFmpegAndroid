@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -14,22 +15,27 @@ import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.baidu.aip.asrwakeup3.core.recog.RecogResult;
 import com.baidu.speech.EventListener;
 import com.baidu.speech.asr.SpeechConstant;
+import com.frank.ffmpeg.AudioDataReceived;
 import com.frank.ffmpeg.BuildConfig;
 import com.frank.ffmpeg.FFmpegCmd;
 import com.frank.ffmpeg.R;
 import com.frank.ffmpeg.Recognizer;
-import com.frank.ffmpeg.util.FFmpegUtil;
+import com.frank.ffmpeg.RecordingThread;
+import com.frank.ffmpeg.WaveView;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * @author Getnway
@@ -42,6 +48,8 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
     private String transformFile = "";
     private MediaRecorder recorder;
     private Recognizer recognizer;
+    private RecordingThread recordingThread;
+    private AudioDataReceived audioDataReceived;
 
     private String[] permissions = {Manifest.permission.RECORD_AUDIO};
     private boolean hasRecordPermission = false;
@@ -50,11 +58,15 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
     private Button btnRecord;
     private Button btnTransform;
     private Button btnRecognize;
+    private Button btnRecordStream;
+    private Button btnTransformM4A;
+    private Button btnTransformPCM;
+    private Button btnRecognizeStream;
+    private WaveView waveView;
     private TextView tvLog;
     private ScrollView scrollView;
     private long start;
-    private static final String FILE_FORMAT = "m4a";
-
+    private List<Short> dataCache = new ArrayList<>();
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -65,15 +77,48 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
         btnRecord = findViewById(R.id.btn_record);
         btnTransform = findViewById(R.id.btn_transform);
         btnRecognize = findViewById(R.id.btn_recognize);
+        btnRecordStream = findViewById(R.id.btn_record_stream);
+        btnTransformM4A = findViewById(R.id.btn_transform_stream_m4a);
+        btnTransformPCM = findViewById(R.id.btn_transform_stream_16pcm);
+        btnRecognizeStream = findViewById(R.id.btn_recognize_stream);
+        waveView = findViewById(R.id.wave_view);
         scrollView = findViewById(R.id.scroll_view);
         tvLog = findViewById(R.id.tv_log);
 
         btnRecord.setOnClickListener(this);
         btnTransform.setOnClickListener(this);
         btnRecognize.setOnClickListener(this);
+        btnRecordStream.setOnClickListener(this);
+        btnTransformM4A.setOnClickListener(this);
+        btnTransformPCM.setOnClickListener(this);
+        btnRecognizeStream.setOnClickListener(this);
 
         recognizer = new Recognizer();
         recognizer.init(this, this);
+
+        audioDataReceived = new AudioDataReceived() {
+
+            @Override
+            public void onAudioDataReceived(short[] data) {
+                if (data != null) {
+                    for (int i = 0; i < data.length - 300; i = i + 400) {
+                        dataCache.add((short) ((data[i] + data[i + 100] + data[i + 200] + data[i + 300]) / 4));
+                    }
+                    waveView.setData(dataCache);
+                    byte[] bytes = new byte[data.length * 2];
+                    ByteBuffer.wrap(bytes)
+                            .order(ByteOrder.LITTLE_ENDIAN)
+                            .asShortBuffer()
+                            .put(data);
+                    if (Looper.myLooper() == null) {
+                        Looper.prepare();
+                    }
+                    recognizer.start(RecordActivity.this, null, bytes);
+                }
+                super.onAudioDataReceived(data);
+            }
+        };
+        recordingThread = new RecordingThread(audioDataReceived);
     }
 
     @Override
@@ -147,54 +192,94 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.btn_record:
-                record();
+                record(btnRecord);
                 break;
             case R.id.btn_transform:
-                transform();
+                transformFile = transform(fileName);
                 break;
             case R.id.btn_recognize:
-                recognize();
+                recognize(btnRecognize, transformFile);
                 break;
+            case R.id.btn_record_stream:
+                record(btnRecordStream);
+                break;
+            case R.id.btn_transform_stream_m4a:
+                pcm2m4a(fileName);
+                break;
+            case R.id.btn_transform_stream_16pcm:
+                transformFile = pcm2pcmLow(fileName);
+                break;
+            case R.id.btn_recognize_stream:
+                recognize(btnRecordStream, transformFile);
         }
     }
 
-    private void record() {
-        if (btnRecord.isSelected()) {
-            stopRecording();
+    private void record(Button btn) {
+        dataCache.clear();
+        if (btn.isSelected()) {
+            if (btn == btnRecord) {
+                stopRecording();
+            } else if (btn == btnRecordStream) {
+                recordingThread.stopRecording();
+            }
             appendLog("结束录制，耗时：" + (System.currentTimeMillis() - start) + "\n\n");
-            btnRecord.setText("录制");
-            btnRecord.setSelected(false);
+            btn.setText("录制");
+            btn.setSelected(false);
         } else {
-            startRecording();
+            if (btn == btnRecord) {
+                startRecording();
+            } else if (btn == btnRecordStream) {
+                fileName = getExternalCacheDir().getAbsolutePath() + File.separatorChar + "RecordTest" + System.currentTimeMillis() + ".pcm";
+                audioDataReceived.setFile(fileName);
+                recordingThread.startRecording();
+            }
             start = System.currentTimeMillis();
             tvLog.setText("");
             appendLog("开始录制");
-            btnRecord.setText("结束");
-            btnRecord.setSelected(true);
+            btn.setText("结束");
+            btn.setSelected(true);
         }
     }
 
-    private void transform() {
-        transformFile = fileName.split("\\." + FILE_FORMAT)[0] + "Tran.pcm";
-        String msg = String.format("call transformFile(): %s ===> %s", fileName, transformFile);
+    private String transform(String inputFile) {
+        String transformFile = inputFile.split("\\.m4a")[0] + "Tran.pcm";
+        String msg = String.format("call transformFile(): %s ===> %s", inputFile, transformFile);
         Log.d(TAG, msg);
         appendLog(msg);
-        String[] commandLine = FFmpegUtil.transformAudio(fileName, transformFile);
-        executeFFmpegCmd(commandLine);
+        String transformAudioCmd = "ffmpeg -i %s -acodec pcm_s16le -f s16le -ac 1 -ar 16000 %s";
+        transformAudioCmd = String.format(transformAudioCmd, inputFile, transformFile);
+        executeFFmpegCmd(transformAudioCmd);
+        return transformFile;
     }
 
-    private void recognize() {
+    private String pcm2m4a(String inputFile) {
+        String transformFile = inputFile.split("\\.pcm")[0] + "Tran.m4a";
+        String transformAudioCmd = "ffmpeg -ac 1 -ar 44100 -f s16le -i %s -ac 1 -ar 44100 -ab 128000 %s";
+        transformAudioCmd = String.format(transformAudioCmd, inputFile, transformFile);
+        executeFFmpegCmd(transformAudioCmd);
+        return transformFile;
+    }
+
+    private String pcm2pcmLow(String inputFile) {
+        String transformFile = inputFile.split("\\.pcm")[0] + "Tran16.pcm";
+        String transformAudioCmd = "ffmpeg -ac 1 -ar 44100 -f s16le -i %s -ac 1 -ar 16000 -f s16le %s";
+        transformAudioCmd = String.format(transformAudioCmd, inputFile, transformFile);
+        executeFFmpegCmd(transformAudioCmd);
+        return transformFile;
+    }
+
+
+    private void recognize(Button btn, String transformFile) {
         start = System.currentTimeMillis();
-        recognizer.start(this, transformFile);
-//        if (btnRecognize.isSelected()) {
-//            recognizer.stop();
-//            btnRecognize.setSelected(false);
-//            btnRecognize.setText("识别");
-//        } else {
-//            recognizer.start(this, transformFile);
-//            btnRecognize.setSelected(true);
-//            btnRecognize.setText("停止");
-//        }
+        if (btn.isSelected()) {
+            recognizer.stop();
+            btn.setSelected(false);
+            btn.setText("识别");
+        } else {
+            recognizer.start(this, transformFile, null);
+            btn.setSelected(true);
+            btn.setText("停止");
+        }
     }
 
     @Override
@@ -211,7 +296,7 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
     }
 
     private void startRecording() {
-        fileName = getExternalCacheDir().getAbsolutePath() + File.separatorChar + "RecordTest" + System.currentTimeMillis() + "." + FILE_FORMAT;
+        fileName = getExternalCacheDir().getAbsolutePath() + File.separatorChar + "RecordTest" + System.currentTimeMillis() + ".m4a";
         Log.d(TAG, String.format("call startRecording(): %s", fileName));
         recorder = new MediaRecorder();
         recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
@@ -219,8 +304,8 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
         recorder.setOutputFile(fileName);
         recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
         recorder.setAudioSamplingRate(44100);
-        recorder.setAudioEncodingBitRate(192 * 1000);
-        recorder.setAudioChannels(2);
+        recorder.setAudioEncodingBitRate(128000);
+        recorder.setAudioChannels(1);
 
         try {
             recorder.prepare();
@@ -263,6 +348,13 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
             }
         }
     };
+
+
+    private void executeFFmpegCmd(final String transformAudioCmd) {
+        Log.d(TAG, String.format("call executeFFmpegCmd(): transformAudioCmd = [%s]", transformAudioCmd));
+        String[] commandLine = transformAudioCmd.split(" ");//以空格分割为字符串数组
+        executeFFmpegCmd(commandLine);
+    }
 
     /**
      * 执行ffmpeg命令行

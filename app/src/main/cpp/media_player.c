@@ -70,6 +70,10 @@ jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved){
     return JNI_VERSION_1_6;
 }
 
+//void set_vm(JavaVM* vm){
+//    javaVM = vm;
+//}
+
 //初始化输入格式上下文
 int init_input_format_context(MediaPlayer* player, const char* file_name){
     //注册所有组件

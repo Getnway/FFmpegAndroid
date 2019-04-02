@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="com.frank.ffmpeg.activity.PushActivity">
+    tools:context="com.frank.sample.activity.PushActivity">
 
     <EditText
         android:id="@+id/edit_file_path"

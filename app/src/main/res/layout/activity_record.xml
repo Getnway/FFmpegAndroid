@@ -70,7 +70,7 @@
             android:text="识别" />
     </LinearLayout>
 
-    <com.frank.ffmpeg.WaveView
+    <com.frank.sample.WaveView
         android:id="@+id/wave_view"
         android:layout_width="match_parent"
         android:layout_height="100dp"

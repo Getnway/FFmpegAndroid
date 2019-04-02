@@ -4,18 +4,13 @@ android {
     compileSdkVersion 27
     buildToolsVersion '27.0.3'
     defaultConfig {
-        applicationId "com.frank.ffmpeg"
-        minSdkVersion 17
+        applicationId "com.frank.sample"
+        minSdkVersion 19
         targetSdkVersion 27
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
-        externalNativeBuild {
-            cmake {
-                cppFlags ""
-            }
-        }
         ndk {
             abiFilters "armeabi-v7a"
         }
@@ -24,18 +19,6 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path "CMakeLists.txt"
-        }
-    }
-    sourceSets {
-        main {
-            jniLibs.srcDirs = ['libs']
-            jni.srcDirs = []
         }
     }
 }
@@ -48,7 +31,8 @@ dependencies {
     })
     compile 'com.android.support:appcompat-v7:27.1.1'
     compile 'com.android.support:recyclerview-v7:27.1.1'
-    compile project(":core")
+    compile project(':lib_baidu_asr')
     testCompile 'junit:junit:4.12'
 //    compile project(':Live')
+    compile project(':lib_ffmpeg')
 }

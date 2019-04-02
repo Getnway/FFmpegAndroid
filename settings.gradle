@@ -1,1 +1,1 @@
-include ':app', ':Live', ':OnLive', ':core'
+include ':app', ':Live', ':OnLive', ':lib_baidu_asr', ':lib_ffmpeg'

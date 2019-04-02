@@ -6,3 +6,7 @@
 /captures
 /local.properties
 .externalNativeBuild
+
+ff-onelib/
+ffmpeg_ijk
+ffmpeg_linux

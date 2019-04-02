@@ -33,5 +33,5 @@ function build_ffmpeg
     make install
 }
 
-cd ffmpeg
+cd ffmpeg_ijk
 build_ffmpeg

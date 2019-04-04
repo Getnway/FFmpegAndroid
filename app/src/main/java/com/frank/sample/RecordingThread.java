@@ -24,6 +24,8 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.NoiseSuppressor;
 import android.util.Log;
 
 import static android.media.AudioManager.MODE_IN_CALL;
@@ -173,6 +175,8 @@ public class RecordingThread {
             Log.e(TAG, "Audio Record can't initialize!");
             return;
         }
+        initAEC(record.getAudioSessionId());
+        initNS(record.getAudioSessionId());
         record.startRecording();
 
         Log.v(TAG, "Start recording");
@@ -191,8 +195,86 @@ public class RecordingThread {
 
         mListener.onAudioDataEnd();
         record.stop();
+        releaseAEC();
+        releaseNS();
         record.release();
 
         Log.v(TAG, String.format("Recording stopped. Samples read: %d", shortsRead));
+    }
+
+    private AcousticEchoCanceler canceler;
+
+    public static boolean isSupportAEC() {
+        if (AcousticEchoCanceler.isAvailable()) {
+            return true;
+        } else {
+            Log.d(TAG, "call isSupportAEC(): false");
+            return false;
+        }
+    }
+
+    public boolean initAEC(int audioSession) {
+        if (canceler != null || !isSupportAEC()) {
+            return false;
+        }
+        canceler = AcousticEchoCanceler.create(audioSession);
+        canceler.setEnabled(true);
+        return canceler.getEnabled();
+    }
+
+    public boolean setAECEnabled(boolean enable) {
+        if (null == canceler || !isSupportAEC()) {
+            return false;
+        }
+        canceler.setEnabled(enable);
+        return canceler.getEnabled();
+    }
+
+    public boolean releaseAEC() {
+        if (null == canceler || !isSupportAEC()) {
+            return false;
+        }
+        canceler.setEnabled(false);
+        canceler.release();
+        canceler = null;
+        return true;
+    }
+
+    private NoiseSuppressor noiseSuppressor;
+
+    private boolean isSupportNS() {
+        if (NoiseSuppressor.isAvailable()) {
+            return true;
+        } else {
+            Log.d(TAG, "call isSupportNS(): false");
+            return false;
+        }
+    }
+
+    private boolean initNS(int audioSession) {
+        if (!isSupportNS() || noiseSuppressor != null) {
+            return false;
+        }
+        noiseSuppressor = NoiseSuppressor.create(audioSession);
+        noiseSuppressor.setEnabled(true);
+        return noiseSuppressor.getEnabled();
+    }
+
+    private boolean setNSEnable(boolean enable) {
+        if (!isSupportNS() || noiseSuppressor == null) {
+            return false;
+        }
+        noiseSuppressor.setEnabled(enable);
+        return noiseSuppressor.getEnabled();
+    }
+
+    private boolean releaseNS() {
+        if (!isSupportNS() || noiseSuppressor == null) {
+            return false;
+        }
+        noiseSuppressor.setEnabled(false);
+        noiseSuppressor.release();
+        noiseSuppressor = null;
+        return true;
     }
 }

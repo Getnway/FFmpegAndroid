@@ -13,7 +13,7 @@ import java.nio.ByteOrder;
  * @Email Getnway@gmail.com
  * @since 2019-03-06
  */
-public class AudioDataReceived implements AudioDataReceivedListener {
+public class AudioDataReceived implements IAudioDataReceivedListener {
     private static final String TAG = "AudioDataReceived";
     private FileOutputStream os = null;
 
@@ -26,7 +26,12 @@ public class AudioDataReceived implements AudioDataReceivedListener {
     }
 
     @Override
-    public void onAudioDataReceived(short[] data) {
+    public void onAudioDataStart() {
+
+    }
+
+    @Override
+    public void onAudioDataReceived(short[] data, long durationMs) {
         Log.d(TAG, String.format("call onAudioDataReceived(): data = [%s]", data == null ? -1 : data.length));
         if (os == null || data == null) return;
         try {
@@ -43,7 +48,7 @@ public class AudioDataReceived implements AudioDataReceivedListener {
     }
 
     @Override
-    public void onAudioDataEnd() {
+    public void onAudioDataEnd(long durationMs) {
         if (os == null) return;
         try {
             Log.d(TAG, "call onAudioDataEnd()");

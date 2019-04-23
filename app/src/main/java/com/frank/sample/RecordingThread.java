@@ -25,34 +25,39 @@ import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.AutomaticGainControl;
 import android.media.audiofx.NoiseSuppressor;
+import android.os.Environment;
+import android.os.SystemClock;
+import android.support.annotation.NonNull;
 import android.util.Log;
 
-import static android.media.AudioManager.MODE_IN_CALL;
-import static android.media.AudioManager.MODE_IN_COMMUNICATION;
-import static android.media.AudioManager.MODE_NORMAL;
-import static android.media.AudioManager.MODE_RINGTONE;
-
 public class RecordingThread {
-    private static final String TAG = RecordingThread.class.getSimpleName();
+    private static final String TAG = "RecordingThread";
+
     private static final int SAMPLE_RATE = 44100;
     private Context context;
+    private AudioManager mAudioManager = null;
     private BroadcastReceiver bluetoothReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             int state = intent.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1);
-            Log.d(TAG, String.format("call onReceive(): state = [%s], intent = [%s]", state, intent));
+            Log.d(TAG, String.format("call onReceive(): state=%s, intent=%s", state, intent));
             if (AudioManager.SCO_AUDIO_STATE_CONNECTED == state) {
                 mAudioManager.setBluetoothScoOn(true);  //打开SCO
-                Log.d(TAG, String.format("call onReceive():%s, %s %s", isBluetoothHeadsetConnected(), mAudioManager.isBluetoothScoOn(), mAudioManager.isBluetoothScoAvailableOffCall()));
+                mAudioManager.setSpeakerphoneOn(false);
+                Log.d(TAG, String.format("call onReceive(): %s, %s, %s %s", recording(), isBluetoothHeadsetConnected(), mAudioManager.isBluetoothScoOn(), mAudioManager.isBluetoothScoAvailableOffCall()));
                 start();//开始录音
+//                RecordingThread.this.context.unregisterReceiver(this);
+            } else if (AudioManager.SCO_AUDIO_STATE_CONNECTING == state) {
+                Log.d(TAG, "SCO_AUDIO_STATE_CONNECTING");
             } else {
                 if (AudioManager.SCO_AUDIO_STATE_DISCONNECTED == state && recording()) {
                     stopRecording();
                 } else {
-                    //等待一秒后再尝试启动SCO
+                    //等待后再尝试启动SCO
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(500);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -61,62 +66,65 @@ public class RecordingThread {
             }
         }
     };
+    private AudioManager.OnAudioFocusChangeListener onAudioFocusChangeListener;
 
-    public RecordingThread(Context context, AudioDataReceivedListener listener) {
-        this.context = context;
+    public RecordingThread(@NonNull Context context, @NonNull IAudioDataReceivedListener listener) {
         mListener = listener;
-        Log.d(TAG, String.format("call RecordingThread(): isBluetoothHeadsetConnected() = [%s], listener = [%s]", isBluetoothHeadsetConnected(), listener));
-        mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-    }
-
-    public static boolean isBluetoothHeadsetConnected() {
-        BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        return mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()
-                && mBluetoothAdapter.getProfileConnectionState(BluetoothHeadset.HEADSET) == BluetoothHeadset.STATE_CONNECTED;
+        this.context = context.getApplicationContext();
+        mAudioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
+        onAudioFocusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+            @Override
+            public void onAudioFocusChange(int focusChange) {
+                Log.d(TAG, String.format("call onAudioFocusChange(): focusChange = [%s]", focusChange));
+            }
+        };
     }
 
     private boolean mShouldContinue;
-    private AudioDataReceivedListener mListener;
+    private IAudioDataReceivedListener mListener;
     private Thread mThread;
-    private AudioManager mAudioManager = null;
 
     public boolean recording() {
         return mThread != null;
     }
 
-    public void startRecording() {
-        Log.d(TAG, String.format("call startRecording():%s, %s %s", isBluetoothHeadsetConnected(), mAudioManager.isBluetoothScoOn(), mAudioManager.isBluetoothScoAvailableOffCall()));
-        Log.d(TAG, String.format("call getMode():%s", getMode()));
+    private boolean isUseAEC, isUseNS, isUseAGC;
 
+    public void startRecording(boolean isUseAEC, boolean isUseNS, boolean isUseAGC) {
+        this.isUseAEC = isUseAEC;
+        this.isUseNS = isUseNS;
+        this.isUseAGC = isUseAGC;
+        startRecording();
+    }
+
+    public void startRecording() {
+//        startRecording2();
+        mAudioManager.requestAudioFocus(onAudioFocusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+        Log.d(TAG, String.format("call startRecording():%s, %s %s", isBluetoothHeadsetConnected(), mAudioManager.isBluetoothScoOn(), mAudioManager.isBluetoothScoAvailableOffCall()));
         if (!isBluetoothHeadsetConnected()) {
             start();
         } else {
-            context.registerReceiver(bluetoothReceiver, new IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED));
+//            mAudioManager.stopBluetoothSco();
             mAudioManager.startBluetoothSco();
+            context.registerReceiver(bluetoothReceiver, new IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED));
         }
-        Log.d(TAG, String.format("call getMode():%s", getMode()));
     }
 
-    private String getMode() {
-        String mode;
-        switch (mAudioManager.getMode()) {
-            case MODE_NORMAL:
-                mode = "MODE_NORMAL";
-                break;
-            case MODE_RINGTONE:
-                mode = "MODE_RINGTONE";
-                break;
-            case MODE_IN_CALL:
-                mode = "MODE_IN_CALL";
-                break;
-            case MODE_IN_COMMUNICATION:
-                mode = "MODE_IN_COMMUNICATION";
-                break;
-            default:
-                mode = "unknown";
-                break;
+    public void stopRecording() {
+//        stopRecording2();
+        Log.d(TAG, String.format("call stopRecording():%s, %s %s %s", isBluetoothHeadsetConnected(), mAudioManager.isBluetoothScoOn(), mAudioManager.isBluetoothScoAvailableOffCall(), mAudioManager.isBluetoothA2dpOn()));
+        stop();
+        if (isBluetoothHeadsetConnected()) {
+            if (mAudioManager.isBluetoothScoOn()) {
+                mAudioManager.setBluetoothScoOn(false);
+                mAudioManager.stopBluetoothSco();
+                mAudioManager.setSpeakerphoneOn(false);
+            } else {
+                mAudioManager.setSpeakerphoneOn(true);
+            }
+            RecordingThread.this.context.unregisterReceiver(bluetoothReceiver);
         }
-        return mode + " " + mAudioManager.isBluetoothScoOn();
+        mAudioManager.abandonAudioFocus(onAudioFocusChangeListener);
     }
 
     private void start() {
@@ -133,25 +141,18 @@ public class RecordingThread {
         mThread.start();
     }
 
-    public void stopRecording() {
+    private void stop() {
         if (mThread == null)
             return;
 
         mShouldContinue = false;
         mThread = null;
-
-        Log.d(TAG, String.format("call getMode():%s", getMode()));
-        if (mAudioManager != null && mAudioManager.isBluetoothScoOn()) {
-            mAudioManager.setBluetoothScoOn(false);
-            mAudioManager.stopBluetoothSco();
-
-            context.unregisterReceiver(bluetoothReceiver);  //别遗漏
-        }
-        Log.d(TAG, String.format("call getMode():%s", getMode()));
     }
 
+    private volatile long start;
+
     private void record() {
-        Log.v(TAG, "Start");
+        Log.v(TAG, "call record():");
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
 
         // buffer size in bytes
@@ -165,7 +166,7 @@ public class RecordingThread {
 
         short[] audioBuffer = new short[bufferSize / 2];
 
-        AudioRecord record = new AudioRecord(MediaRecorder.AudioSource.DEFAULT,
+        AudioRecord record = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                 SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
@@ -175,11 +176,17 @@ public class RecordingThread {
             Log.e(TAG, "Audio Record can't initialize!");
             return;
         }
-        initAEC(record.getAudioSessionId());
-        initNS(record.getAudioSessionId());
+        if (isUseAEC)
+            initAEC(record.getAudioSessionId());
+        if (isUseNS)
+            initNS(record.getAudioSessionId());
+        if (isUseAGC)
+            initAGC(record.getAudioSessionId());
+        start = SystemClock.elapsedRealtime();
         record.startRecording();
 
-        Log.v(TAG, "Start recording");
+        Log.d(TAG, String.format("call record(): Start recording"));
+        mListener.onAudioDataStart();
 
         long shortsRead = 0;
         while (mShouldContinue) {
@@ -189,31 +196,38 @@ public class RecordingThread {
                 shortsRead += numberOfShort;
 
                 // Notify waveform
-                mListener.onAudioDataReceived(audioBuffer);
+                mListener.onAudioDataReceived(audioBuffer, SystemClock.elapsedRealtime() - start);
             }
         }
 
-        mListener.onAudioDataEnd();
+        mListener.onAudioDataEnd(SystemClock.elapsedRealtime() - start);
         record.stop();
         releaseAEC();
         releaseNS();
+        releaseAGC();
         record.release();
 
-        Log.v(TAG, String.format("Recording stopped. Samples read: %d", shortsRead));
+        Log.d(TAG, String.format("call record(): Recording stopped. Samples read: %d", shortsRead));
+    }
+
+    private static boolean isBluetoothHeadsetConnected() {
+        BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        return mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()
+                && mBluetoothAdapter.getProfileConnectionState(BluetoothHeadset.HEADSET) == BluetoothHeadset.STATE_CONNECTED;
     }
 
     private AcousticEchoCanceler canceler;
 
-    public static boolean isSupportAEC() {
+    private static boolean isSupportAEC() {
         if (AcousticEchoCanceler.isAvailable()) {
             return true;
         } else {
-            Log.d(TAG, "call isSupportAEC(): false");
+            Log.d(TAG, String.format("call isSupportAEC(): false"));
             return false;
         }
     }
 
-    public boolean initAEC(int audioSession) {
+    private boolean initAEC(int audioSession) {
         if (canceler != null || !isSupportAEC()) {
             return false;
         }
@@ -230,7 +244,7 @@ public class RecordingThread {
         return canceler.getEnabled();
     }
 
-    public boolean releaseAEC() {
+    private boolean releaseAEC() {
         if (null == canceler || !isSupportAEC()) {
             return false;
         }
@@ -246,7 +260,7 @@ public class RecordingThread {
         if (NoiseSuppressor.isAvailable()) {
             return true;
         } else {
-            Log.d(TAG, "call isSupportNS(): false");
+            Log.d(TAG, String.format("call isSupportNS(): false"));
             return false;
         }
     }
@@ -260,7 +274,7 @@ public class RecordingThread {
         return noiseSuppressor.getEnabled();
     }
 
-    private boolean setNSEnable(boolean enable) {
+    public boolean setNSEnable(boolean enable) {
         if (!isSupportNS() || noiseSuppressor == null) {
             return false;
         }
@@ -276,5 +290,100 @@ public class RecordingThread {
         noiseSuppressor.release();
         noiseSuppressor = null;
         return true;
+    }
+
+    private AutomaticGainControl gainControl;
+
+    private boolean isSupportAGC() {
+        if (AutomaticGainControl.isAvailable()) {
+            return true;
+        } else {
+            Log.d(TAG, String.format("call isSupportAGC(): false"));
+            return false;
+        }
+    }
+
+    private boolean initAGC(int audioSession) {
+        if (!isSupportAGC() || gainControl != null) {
+            return false;
+        }
+        gainControl = AutomaticGainControl.create(audioSession);
+        gainControl.setEnabled(true);
+        return gainControl.getEnabled();
+    }
+
+    private boolean setAGCEnable(boolean enable) {
+        if (!isSupportAGC() || gainControl == null) {
+            return false;
+        }
+        gainControl.setEnabled(enable);
+        return gainControl.getEnabled();
+    }
+
+    private boolean releaseAGC() {
+        if (!isSupportAGC() || gainControl == null) {
+            return false;
+        }
+        gainControl.setEnabled(false);
+        gainControl.release();
+        gainControl = null;
+        return true;
+    }
+
+    private void startRecording2() {
+        mAudioManager.requestAudioFocus(onAudioFocusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+
+        if (!mAudioManager.isBluetoothScoAvailableOffCall()) {
+            Log.i(TAG, "系统不支持蓝牙录音");
+            return;
+        }
+        Log.i(TAG, "系统支持蓝牙录音");
+        mAudioManager.stopBluetoothSco();
+        mAudioManager.startBluetoothSco();//蓝牙录音的关键，启动SCO连接，耳机话筒才起作用
+
+        RecordingThread.this.context.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int state = intent.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1);
+                Log.d(TAG, String.format("call onReceive(): state=%s, intent=%s", state, intent));
+
+                if (AudioManager.SCO_AUDIO_STATE_CONNECTED == state) {
+                    Log.i(TAG, "AudioManager.SCO_AUDIO_STATE_CONNECTED");
+                    mAudioManager.setBluetoothScoOn(true);  //打开SCO
+                    Log.i(TAG, "Routing:" + mAudioManager.isBluetoothScoOn());
+                    mAudioManager.setMode(AudioManager.STREAM_MUSIC);
+                    Log.d(TAG, "启动录音");
+                    RecordingThread.this.context.unregisterReceiver(this);  //别遗漏
+                } else if (AudioManager.SCO_AUDIO_STATE_CONNECTING == state) {
+                    Log.d(TAG, "SCO_AUDIO_STATE_CONNECTING");
+                } else {//等待一秒后再尝试启动SCO
+                    try {
+                        Thread.sleep(10000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    mAudioManager.startBluetoothSco();
+                    Log.i(TAG, "再次startBluetoothSco()");
+                }
+
+				/*Log.i(TAG, "AudioManager.SCO_AUDIO_STATE_CONNECTED");
+				mAudioManager.setBluetoothScoOn(true);  //打开SCO
+				Log.i(TAG, "Routing:" + mAudioManager.isBluetoothScoOn());
+				mAudioManager.setMode(AudioManager.STREAM_MUSIC);
+				mRecorder.start();//开始录音
+				Log.d(TAG,"启动录音");
+				unregisterReceiver(this);  //别遗漏*/
+            }
+//		}, new IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_CHANGED));
+        }, new IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED));
+    }
+
+    private void stopRecording2() {
+        //mAudioManager.stopBluetoothSco();
+        if (mAudioManager.isBluetoothScoOn()) {
+            mAudioManager.setBluetoothScoOn(false);
+            mAudioManager.stopBluetoothSco();
+        }
+        mAudioManager.abandonAudioFocus(onAudioFocusChangeListener);
     }
 }

@@ -3,6 +3,7 @@ package com.frank.sample.activity;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
+import android.media.AudioManager;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Handler;
@@ -48,7 +49,7 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
     private RecordingThread recordingThread;
     private AudioDataReceived audioDataReceived;
 
-    private String[] permissions = {Manifest.permission.RECORD_AUDIO};
+    private String[] permissions = {Manifest.permission.RECORD_AUDIO,Manifest.permission.PROCESS_OUTGOING_CALLS, Manifest.permission.READ_PHONE_STATE};
     private boolean hasRecordPermission = false;
     private static final int REQUEST_RECORD_AUDIO_PERMISSION = 567;
 
@@ -94,16 +95,19 @@ public class RecordActivity extends AppCompatActivity implements View.OnClickLis
         recognizer.init(this, this);
 
         audioDataReceived = new AudioDataReceived() {
+            private int sum = 0;
 
             @Override
-            public void onAudioDataReceived(short[] data) {
+            public void onAudioDataReceived(short[] data, long durationMs) {
+                sum = 0;
                 if (data != null) {
-                    for (int i = 0; i < data.length - 300; i = i + 400) {
-                        dataCache.add((short) ((data[i] + data[i + 100] + data[i + 200] + data[i + 300]) / 4));
+                    for (int i = 0; i < data.length; i++) {
+                        sum += Math.abs(data[i]);
                     }
+                    dataCache.add((short) (sum / data.length));
                     waveView.setData(dataCache);
                 }
-                super.onAudioDataReceived(data);
+                super.onAudioDataReceived(data, durationMs);
             }
         };
         recordingThread = new RecordingThread(this, audioDataReceived);

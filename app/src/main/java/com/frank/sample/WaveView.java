@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.View;
 
@@ -43,10 +44,13 @@ public class WaveView extends View {
     }
 
     private void init() {
-        float density = getResources().getDisplayMetrics().density;
-        float width = getResources().getDisplayMetrics().widthPixels;
-        rate = -64 * density + 72 * (width / 360);
-//        Ln.d("call init():%s %s", rate, getResources().getDisplayMetrics().toString());
+        DisplayMetrics metrics = getResources().getDisplayMetrics();
+        //rate = 48;//-64 * density + 72 * (width / 360);
+        float z = 119262F / 91321;
+        float y = -7016F / 91321;
+        float x = -11198992F / 91321;
+        this.rate = x * metrics.density + y * metrics.heightPixels + z * metrics.ydpi;
+//        Log.d(getClass().getSimpleName(), String.format("call init():%s %s", this.rate, getResources().getDisplayMetrics().toString()));
         wavePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     }
 
@@ -59,7 +63,7 @@ public class WaveView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         int count = getWidth() / (int) (waveInterval + waveThickness);
-//        Ln.d("call onDraw(): size=%s count=%s width=%s height=%s", data == null ? -1 : data.size(), count, getWidth(), getHeight());
+//        Log.d(getClass().getSimpleName(), String.format("call onDraw(): size=%s count=%s width=%s height=%s", data == null ? -1 : data.size(), count, getWidth(), getHeight()));
 
         float waveLeft = 0, waveHeight;
         int offset = data.size() > count ? data.size() - count : 0;
